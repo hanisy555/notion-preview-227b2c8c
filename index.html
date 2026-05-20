@@ -1,0 +1,131 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script>
+(function(){
+  var __k="3e88d390-7b12-4e40-9f31-913cb40eac37";
+  var __a=null;
+  var __preload=null;
+  if(!__k)return;
+  var _f=window.fetch;
+  // S3 URL → file_key 추출 후 __a 매핑 lookup → assets/ 로컬 경로 치환
+  // 응답에 새 signed URL이 와도 같은 file_key면 같은 assets/ → 영구 작동
+  function patchUrls(data){
+    if(!__a)return data;
+    try{
+      var s=JSON.stringify(data);
+      // 응답 안의 모든 S3 URL을 정규식으로 찾고, file_key 추출 → 매핑 lookup
+      s=s.replace(/https:\/\/prod-files-secure\.s3\.amazonaws\.com\/[^"\s<>]+/g,function(url){
+        var m=url.match(/\.amazonaws\.com\/([^?\\]+)/);
+        if(!m)return url;
+        var key=m[1].replace(/\\u002F/g,"/");
+        return __a[key]||url;
+      });
+      return JSON.parse(s);
+    }catch(e){return data;}
+  }
+  function callMisiso(method,path,body){
+    return _f("https://misiso.com/api/notion/deploy-proxy",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({deployKey:__k,path:path,method:method,body:body})
+    }).then(function(r){
+      var status=r.status;
+      return r.json().then(function(data){return {status:status,data:patchUrls(data)};});
+    });
+  }
+  // preload pattern — 페이지 로드와 병렬로 정적 fetch 호출 미리 시작
+  var __preloadCache={};
+  if(__preload){
+    for(var i=0;i<__preload.length;i++){
+      (function(c){
+        var key=c.method+":"+c.path+":"+(c.body?JSON.stringify(c.body):"");
+        __preloadCache[key]=callMisiso(c.method,c.path,c.body);
+      })(__preload[i]);
+    }
+  }
+  window.fetch=function(url,opts){
+    var u=typeof url==="string"?url:String(url);
+    if(!u.startsWith("/api/notion/"))return _f.apply(this,arguments);
+    var path=u.slice("/api/notion".length);
+    var method=(opts&&opts.method)||"GET";
+    var body;
+    try{body=opts&&opts.body?JSON.parse(opts.body):undefined;}catch(e){body=opts&&opts.body;}
+    var ck=method+":"+path+":"+(body?JSON.stringify(body):"");
+    var promise=__preloadCache[ck];
+    if(promise){delete __preloadCache[ck];}
+    else{promise=callMisiso(method,path,body);}
+    return promise.then(function(res){
+      return new Response(JSON.stringify(res.data),{
+        status:res.status,
+        headers:{"Content-Type":"application/json"}
+      });
+    });
+  };
+})();
+</script>
+<title>한의원 AI 진료 자동화 · Browser MVP</title>
+<meta name="description" content="한의원 초진설문·진료 세션·AI 문서·카카오 발송 대시보드 (내부 MVP)">
+<meta property="og:title" content="한의원 AI 진료 자동화">
+<meta property="og:description" content="접수대 QR→초진설문→진료 세션→AI 산출물→카카오 발송까지 레일을 파악하는 대시보드.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://misiso.com" crossorigin/>
+<meta property="og:image" content="https://hanisy555.github.io/notion-preview-227b2c8c/og-image-003wxvfc.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:image" content="https://hanisy555.github.io/notion-preview-227b2c8c/og-image-003wxvfc.png"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2032%2032'%3E%3Crect%20width%3D'32'%20height%3D'32'%20rx%3D'6'%20fill%3D'%236366f1'%2F%3E%3Ctext%20x%3D'16'%20y%3D'22'%20text-anchor%3D'middle'%20font-size%3D'18'%20fill%3D'white'%20font-family%3D'sans-serif'%3E%ED%95%9C%3C%2Ftext%3E%3C%2Fsvg%3E"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; background: #faf7ff; color: #1f1933; }
+button { font: inherit; cursor: pointer; }
+.app { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
+.sidebar { background: #1f1933; color: #f3eaff; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: .5rem; }
+.brand { font-weight: 700; font-size: 1.05rem; margin-bottom: 1rem; line-height: 1.4; }
+.tab { background: transparent; color: inherit; border: 0; text-align: left; padding: .65rem .8rem; border-radius: .5rem; font-size: .9rem; }
+.tab:hover { background: rgba(255,255,255,.08); }
+.tab.active { background: #a855f7; color: white; }
+.warn { margin-top: auto; font-size: .75rem; line-height: 1.5; background: #471c4d; padding: .65rem .75rem; border-radius: .5rem; color: #ffd1f0; }
+.main { padding: 2rem 2.4rem; overflow-x: hidden; }
+.h-section { font-size: 1.45rem; font-weight: 700; margin: 0 0 .25rem; }
+.h-sub { color: #6b6388; font-size: .9rem; margin-bottom: 1.4rem; }
+.card { background: white; border: 1px solid #ece5f7; border-radius: .8rem; padding: 1.2rem 1.4rem; box-shadow: 0 1px 2px rgba(31, 25, 51, .04); }
+.card + .card { margin-top: 1rem; }
+.row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.row > * { flex: 1; min-width: 0; }
+.input { width: 100%; padding: .55rem .7rem; border: 1px solid #d8cdec; border-radius: .45rem; font-size: .9rem; background: white; }
+.btn { padding: .55rem 1rem; border: 0; border-radius: .45rem; background: #a855f7; color: white; font-size: .85rem; }
+.btn.secondary { background: #ece5f7; color: #3d2c66; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.qr-wrap { display: flex; gap: 1.4rem; align-items: flex-start; flex-wrap: wrap; }
+.qr-box { background: white; padding: 1rem; border-radius: .6rem; border: 1px solid #ece5f7; }
+.qr-meta { flex: 1; min-width: 240px; }
+.tag { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-size: .72rem; background: #ece5f7; color: #5d4799; margin-right: .25rem; }
+.tag.ok { background: #d4f5e3; color: #1d6b3d; }
+.tag.err { background: #ffd6d6; color: #8a1f1f; }
+.tag.wait { background: #fff2cd; color: #7b5a00; }
+.list { display: flex; flex-direction: column; gap: .5rem; }
+.list-item { padding: .85rem 1rem; border: 1px solid #ece5f7; border-radius: .55rem; background: white; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.list-item .meta { color: #6b6388; font-size: .8rem; }
+.empty { padding: 2.2rem; text-align: center; color: #8a82a8; font-size: .9rem; border: 1px dashed #d8cdec; border-radius: .6rem; background: white; }
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: .35rem .9rem; font-size: .85rem; }
+.kv dt { color: #6b6388; }
+.kv dd { margin: 0; color: #1f1933; }
+.code { font-family: 'JetBrains Mono', 'D2 Coding', ui-monospace, monospace; background: #1f1933; color: #ffd1f0; border-radius: .5rem; padding: .9rem 1rem; font-size: .78rem; line-height: 1.55; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+.banner { padding: 1rem 1.2rem; border-radius: .6rem; background: #fff7d6; color: #6b5400; font-size: .85rem; border: 1px solid #fce6a4; margin-bottom: 1rem; }
+.banner.danger { background: #ffe5e5; color: #8a1f1f; border-color: #ffc7c7; }
+.check { display: flex; gap: .5rem; align-items: flex-start; font-size: .88rem; line-height: 1.55; }
+.check input { margin-top: .25rem; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 900px) { .app { grid-template-columns: 1fr; } .sidebar { flex-direction: row; flex-wrap: wrap; padding: 1rem; } .grid-2 { grid-template-columns: 1fr; } }
+</style>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>if(window.Babel)Babel.disableScriptTags=true;</script>
+</head><body><div id="root"></div>
+<rect width='32' height='32' rx='6' fill='%23a855f7'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='sans-serif'>한</text></svg>"><script type="module">
+var __np_strip_imports=function(){return{visitor:{ImportDeclaration:function(path){var src=path.node.source.value;if(src.indexOf("./")===0||src.indexOf("../")===0)path.remove();},ExportDefaultDeclaration:function(path){var decl=path.node.declaration;if(decl.type==="FunctionDeclaration"||decl.type==="ClassDeclaration"){path.replaceWith(decl);}else{path.replaceWith({type:"VariableDeclaration",kind:"var",declarations:[{type:"VariableDeclarator",id:{type:"Identifier",name:"_default"},init:decl}]});}},ExportNamedDeclaration:function(path){if(path.node.declaration){path.replaceWith(path.node.declaration);}else{path.remove();}},ExportAllDeclaration:function(path){path.remove();}}};};
+var __np_dedupe_top_consts=function(){var _s={};return{visitor:{VariableDeclaration:function(p){if(p.parent.type!=="Program")return;if(p.node.kind!=="const"&&p.node.kind!=="let")return;var kept=[];for(var i=0;i<p.node.declarations.length;i++){var d=p.node.declarations[i];var n=d.id&&d.id.type==="Identifier"?d.id.name:null;if(n&&_s[n]){}else{if(n)_s[n]=true;kept.push(d);}}if(kept.length===0){p.remove();}else{p.node.declarations=kept;}}}}};
+var __np_jsx_decode=function(){function _d(v){v=v.replace(/\\u\{([0-9a-fA-F]+)\}/g,function(_,h){return String.fromCodePoint(parseInt(h,16));});v=v.replace(/\\u([0-9a-fA-F]{4})/g,function(_,h){return String.fromCharCode(parseInt(h,16));});return v;}return{visitor:{JSXText:function(p){p.node.value=_d(p.node.value);},StringLiteral:function(p){if(!p.parent||p.parent.type!=="JSXAttribute")return;p.node.value=_d(p.node.value);}}}};
+var __code="import React from 'https://esm.sh/react';\nimport ReactDOM from 'https://esm.sh/react-dom/client';\nimport { useEffect, useMemo, useRef, useState } from 'https://esm.sh/react';\nimport QRCode from 'https://esm.sh/qrcode';\n\n// === 워크스페이스 DB ID (raw 32자 hex — 각 DB URL의 hex로 교체하세요) ===\nconst DB_IDS = {\n\tintake:    '_NP_DB_00000000', // 초진설문지 폼 DB\n\texam:      '_NP_DB_0000000000000000', // 신체검사 Form DB\n\tsession:   '_NP_DB_000000000000000000000000', // 진료 세션 DB\n\taiDoc:     '_NP_DB_00000000000000000000000000000004', // AI 문서 생성 DB\n\tkb:        '_NP_DB_00000000000000000000000000000005', // 한의학 자료 DB\n\tqueue:     '_NP_DB_00000000000000000000000000000006', // CRM 카카오 발송 큐 DB\n\tlog:       '_NP_DB_00000000000000000000000000000007', // CRM 카카오 발송 로그 DB\n\ttemplate:  '_NP_DB_00000000000000000000000000000008', // CRM 메시지 템플릿 DB\n\tenv:       '_NP_DB_00000000000000000000000000000009', // .env 설정 DB\n};\n\n// === 브라우저 .env (내부 MVP 전용) ===\nconst BROWSER_DOTENV = `\nFIRST_VISIT_FORM_URL=https://www.notion.so/REPLACE_WITH_FORM_SHARE_LINK\nPOLL_INTERVAL_SECONDS=10\nMAX_RETRY_COUNT=3\nTIMEZONE=Asia/Seoul\nKAKAO_CHANNEL_API_BASE_URL=https://kapi.kakao.com/v1/api/talk/friends/message/default/send\nKAKAO_CHANNEL_ID=REPLACE_WITH_KAKAO_CHANNEL_ID\n`;\n\nfunction parseDotenv(raw) {\n\tconst out = {};\n\tfor (const line of raw.split('\\n')) {\n\t\tconst trimmed = line.trim();\n\t\tif (!trimmed || trimmed.startsWith('#')) continue;\n\t\tconst eq = trimmed.indexOf('=');\n\t\tif (eq < 0) continue;\n\t\tout[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();\n\t}\n\treturn out;\n}\nconst ENV = parseDotenv(BROWSER_DOTENV);\nconst POLL_INTERVAL_MS = (Number(ENV.POLL_INTERVAL_SECONDS) || 10) * 1000;\n\n// === Notion DB 속성 값 추출 ===\nfunction getValue(prop) {\n\tif (!prop) return '';\n\tswitch (prop.type) {\n\t\tcase 'title':         return prop.title.map(t => t.plain_text).join('');\n\t\tcase 'rich_text':     return prop.rich_text.map(t => t.plain_text).join('');\n\t\tcase 'number':        return prop.number ?? '';\n\t\tcase 'select':        return prop.select?.name ?? '';\n\t\tcase 'status':        return prop.status?.name ?? '';\n\t\tcase 'multi_select':  return prop.multi_select.map(s => s.name).join(', ');\n\t\tcase 'date':          return prop.date?.start ?? '';\n\t\tcase 'checkbox':      return prop.checkbox ? '✓' : '';\n\t\tcase 'url':           return prop.url ?? '';\n\t\tcase 'email':         return prop.email ?? '';\n\t\tcase 'phone_number':  return prop.phone_number ?? '';\n\t\tcase 'created_time':  return prop.created_time;\n\t\tcase 'last_edited_time': return prop.last_edited_time;\n\t\tdefault:              return '';\n\t}\n}\n\nasync function queryDb(dbId, body) {\n\tconst res = await fetch(`/api/notion/databases/${dbId}/query`, {\n\t\tmethod: 'POST',\n\t\theaders: { 'Content-Type': 'application/json' },\n\t\tbody: JSON.stringify(body ?? { page_size: 20 }),\n\t});\n\tif (!res.ok) throw new Error(`status ${res.status}`);\n\treturn res.json();\n}\n\n// === Mock fallback ===\nconst MOCK = {\n\tintake: [\n\t\t{ id: 'mock-i-1', name: '김철수', phone: '010-1111-2222', symptom: '만성 요통', status: '세션생성대기', createdTime: new Date().toISOString() },\n\t\t{ id: 'mock-i-2', name: '이영희', phone: '010-3333-4444', symptom: '불면', status: '접수대기', createdTime: new Date().toISOString() },\n\t],\n\tsession: [\n\t\t{ id: 'mock-s-1', title: '2026-05-20 김철수', visit: '2026-05-20', stage: 'AI생성대기' },\n\t\t{ id: 'mock-s-2', title: '2026-05-20 이영희', visit: '2026-05-20', stage: '한의사검토중' },\n\t],\n\tqueueWaiting: [\n\t\t{ id: 'mock-q-1', name: '김철수 진료리포트', origin: '진료리포트', sendStatus: '발송대기', retry: 0 },\n\t],\n\tqueueFailed: [\n\t\t{ id: 'mock-q-2', name: '이영희 복약안내', origin: '복약안내', sendStatus: '실패', retry: 2 },\n\t],\n};\n\nconst TABS = [\n\t{ key: 'qr',      label: '접수 QR' },\n\t{ key: 'intake',  label: '초진설문 응답' },\n\t{ key: 'session', label: '진료 세션' },\n\t{ key: 'queue',   label: 'CRM 발송 큐' },\n\t{ key: 'check',   label: '점검 패널' },\n];\n\nfunction App() {\n\tconst [tab, setTab] = useState('qr');\n\treturn (\n\t\t<div className=\"app\">\n\t\t\t<aside className=\"sidebar\">\n\t\t\t\t<div className=\"brand\">한의원 AI 진료<br/>자동화 MVP</div>\n\t\t\t\t{TABS.map(t => (\n\t\t\t\t\t<button key={t.key} className={tab === t.key ? 'tab active' : 'tab'} onClick={() => setTab(t.key)}>{t.label}</button>\n\t\t\t\t))}\n\t\t\t\t<div className=\"warn\">내부 MVP 전용.<br/>외부 공개·토큰 유출 금지.</div>\n\t\t\t</aside>\n\t\t\t<main className=\"main\">\n\t\t\t\t{tab === 'qr' && <QrPanel />}\n\t\t\t\t{tab === 'intake' && <IntakePanel />}\n\t\t\t\t{tab === 'session' && <SessionPanel />}\n\t\t\t\t{tab === 'queue' && <QueuePanel />}\n\t\t\t\t{tab === 'check' && <CheckPanel />}\n\t\t\t</main>\n\t\t</div>\n\t);\n}\n\nfunction QrPanel() {\n\tconst [url, setUrl] = useState(ENV.FIRST_VISIT_FORM_URL || '');\n\tconst [pngDataUrl, setPngDataUrl] = useState('');\n\tconst [svgString, setSvgString] = useState('');\n\tconst canvasRef = useRef(null);\n\n\tuseEffect(() => {\n\t\tif (!url || !canvasRef.current) return;\n\t\tQRCode.toCanvas(canvasRef.current, url, { width: 240, margin: 2 }).catch(err => console.warn('[QR] canvas', err.message));\n\t\tQRCode.toDataURL(url, { width: 600, margin: 2 }).then(setPngDataUrl).catch(err => console.warn('[QR] png', err.message));\n\t\tQRCode.toString(url, { type: 'svg', margin: 2 }).then(setSvgString).catch(err => console.warn('[QR] svg', err.message));\n\t}, [url]);\n\n\tconst svgHref = useMemo(() => svgString ? 'data:image/svg+xml;utf8,' + encodeURIComponent(svgString) : '', [svgString]);\n\n\treturn (\n\t\t<>\n\t\t\t<h2 className=\"h-section\">접수 QR</h2>\n\t\t\t<p className=\"h-sub\">초진설문지 Form URL을 QR로 렌더링. 접수대 태블릿에 녹취.</p>\n\t\t\t<div className=\"card\">\n\t\t\t\t<div className=\"qr-wrap\">\n\t\t\t\t\t<div className=\"qr-box\"><canvas ref={canvasRef} /></div>\n\t\t\t\t\t<div className=\"qr-meta\">\n\t\t\t\t\t\t<label className=\"h-sub\">Form URL</label>\n\t\t\t\t\t\t<input className=\"input\" value={url} onChange={e => setUrl(e.target.value)} placeholder=\"https://www.notion.so/...\" />\n\t\t\t\t\t\t<div className=\"row\" style-skip>\n\t\t\t\t\t\t\t<a className=\"btn secondary\" href={pngDataUrl} download=\"haniwon-intake-qr.png\" aria-disabled={!pngDataUrl}>PNG 다운로드</a>\n\t\t\t\t\t\t\t<a className=\"btn secondary\" href={svgHref} download=\"haniwon-intake-qr.svg\" aria-disabled={!svgHref}>SVG 다운로드</a>\n\t\t\t\t\t\t</div>\n\t\t\t\t\t\t<p className=\"h-sub\">✎ BROWSER_DOTENV의 `FIRST_VISIT_FORM_URL`을 수정하면 기본값이 바뀍니다.</p>\n\t\t\t\t\t</div>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t</>\n\t);\n}\n\nfunction IntakePanel() {\n\tconst [rows, setRows] = useState([]);\n\tconst [loading, setLoading] = useState(true);\n\tconst [errMsg, setErrMsg] = useState('');\n\n\tuseEffect(() => {\n\t\tlet alive = true;\n\t\tqueryDb(DB_IDS.intake, { page_size: 20, sorts: [{ timestamp: 'created_time', direction: 'descending' }] })\n\t\t\t.then(data => {\n\t\t\t\tif (!alive) return;\n\t\t\t\tconst parsed = (data.results || []).map(p => ({\n\t\t\t\t\tid: p.id,\n\t\t\t\t\tname: getValue(p.properties['성명']),\n\t\t\t\t\tphone: getValue(p.properties['휴대전화번호']),\n\t\t\t\t\tsymptom: getValue(p.properties['주소증']),\n\t\t\t\t\tstatus: getValue(p.properties['설문처리상태']),\n\t\t\t\t\tcreatedTime: getValue(p.properties['제출일시']),\n\t\t\t\t}));\n\t\t\t\tsetRows(parsed.length ? parsed : MOCK.intake);\n\t\t\t})\n\t\t\t.catch(err => {\n\t\t\t\tconsole.warn('[intake] 조회 실패, FALLBACK 사용:', err.message);\n\t\t\t\tif (alive) { setRows(MOCK.intake); setErrMsg(err.message); }\n\t\t\t})\n\t\t\t.finally(() => { if (alive) setLoading(false); });\n\t\treturn () => { alive = false; };\n\t}, []);\n\n\treturn (\n\t\t<>\n\t\t\t<h2 className=\"h-section\">초진설문 응답</h2>\n\t\t\t<p className=\"h-sub\">최근 20건. 세션 생성 전/후 처리 상태를 포함.</p>\n\t\t\t{errMsg && <div className=\"banner\">DB 조회 실패: {errMsg} — mock 데이터로 렌더링 중입니다.</div>}\n\t\t\t{loading ? <div className=\"empty\">불러오는 중…</div> : (\n\t\t\t\trows.length === 0\n\t\t\t\t\t? <div className=\"empty\">응답 없음</div>\n\t\t\t\t\t: <div className=\"list\">{rows.map(r => (\n\t\t\t\t\t\t<div className=\"list-item\" key={r.id}>\n\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t<div>{r.name || '이름 없음'} <span className=\"tag\">{r.status || '-'}</span></div>\n\t\t\t\t\t\t\t\t<div className=\"meta\">{r.phone || '-'} · {r.symptom || '-'}</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<div className=\"meta\">{r.createdTime?.slice(0, 16).replace('T', ' ') || '-'}</div>\n\t\t\t\t\t\t</div>\n\t\t\t\t\t))}</div>\n\t\t\t)}\n\t\t</>\n\t);\n}\n\nfunction SessionPanel() {\n\tconst [rows, setRows] = useState([]);\n\tconst [loading, setLoading] = useState(true);\n\tconst [errMsg, setErrMsg] = useState('');\n\n\tuseEffect(() => {\n\t\tlet alive = true;\n\t\tqueryDb(DB_IDS.session, { page_size: 20 })\n\t\t\t.then(data => {\n\t\t\t\tif (!alive) return;\n\t\t\t\tconst parsed = (data.results || []).map(p => ({\n\t\t\t\t\tid: p.id,\n\t\t\t\t\ttitle: getValue(p.properties['세션명']),\n\t\t\t\t\tvisit: getValue(p.properties['방문일']),\n\t\t\t\t\tstage: getValue(p.properties['진료단계상태']),\n\t\t\t\t}));\n\t\t\t\tsetRows(parsed.length ? parsed : MOCK.session);\n\t\t\t})\n\t\t\t.catch(err => {\n\t\t\t\tconsole.warn('[session] 조회 실패, FALLBACK 사용:', err.message);\n\t\t\t\tif (alive) { setRows(MOCK.session); setErrMsg(err.message); }\n\t\t\t})\n\t\t\t.finally(() => { if (alive) setLoading(false); });\n\t\treturn () => { alive = false; };\n\t}, []);\n\n\treturn (\n\t\t<>\n\t\t\t<h2 className=\"h-section\">진료 세션</h2>\n\t\t\t<p className=\"h-sub\">최근 세션과 단계. 세부 차팁은 각 세션 페이지 본문에서 수행.</p>\n\t\t\t{errMsg && <div className=\"banner\">DB 조회 실패: {errMsg} — mock 데이터로 렌더링 중입니다.</div>}\n\t\t\t{loading ? <div className=\"empty\">불러오는 중…</div> : (\n\t\t\t\trows.length === 0\n\t\t\t\t\t? <div className=\"empty\">세션 없음</div>\n\t\t\t\t\t: <div className=\"list\">{rows.map(r => (\n\t\t\t\t\t\t<div className=\"list-item\" key={r.id}>\n\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t<div>{r.title || '제목 없음'} <span className=\"tag\">{r.stage || '-'}</span></div>\n\t\t\t\t\t\t\t\t<div className=\"meta\">방문일 {r.visit || '-'}</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\t\t\t\t\t))}</div>\n\t\t\t)}\n\t\t</>\n\t);\n}\n\nfunction QueuePanel() {\n\tconst [waiting, setWaiting] = useState([]);\n\tconst [failed, setFailed] = useState([]);\n\tconst [polling, setPolling] = useState(false);\n\tconst [tick, setTick] = useState(0);\n\tconst [errMsg, setErrMsg] = useState('');\n\tconst [loading, setLoading] = useState(true);\n\n\tuseEffect(() => {\n\t\tlet alive = true;\n\t\tasync function load() {\n\t\t\ttry {\n\t\t\t\tconst [w, f] = await Promise.all([\n\t\t\t\t\tqueryDb(DB_IDS.queue, { page_size: 50, filter: { property: '발송상태', status: { equals: '발송대기' } } }),\n\t\t\t\t\tqueryDb(DB_IDS.queue, { page_size: 50, filter: { property: '발송상태', status: { equals: '실패' } } }),\n\t\t\t\t]);\n\t\t\t\tif (!alive) return;\n\t\t\t\tconst parse = list => list.map(p => ({\n\t\t\t\t\tid: p.id,\n\t\t\t\t\tname: getValue(p.properties['요청명']),\n\t\t\t\t\torigin: getValue(p.properties['발송출처']),\n\t\t\t\t\tsendStatus: getValue(p.properties['발송상태']),\n\t\t\t\t\tretry: getValue(p.properties['재시도횟수']),\n\t\t\t\t}));\n\t\t\t\tconst pw = parse(w.results || []);\n\t\t\t\tconst pf = parse(f.results || []);\n\t\t\t\tsetWaiting(pw.length ? pw : MOCK.queueWaiting);\n\t\t\t\tsetFailed(pf.length ? pf : MOCK.queueFailed);\n\t\t\t\tsetErrMsg('');\n\t\t\t} catch (err) {\n\t\t\t\tconsole.warn('[queue] 조회 실패, FALLBACK 사용:', err.message);\n\t\t\t\tif (!alive) return;\n\t\t\t\tsetWaiting(MOCK.queueWaiting);\n\t\t\t\tsetFailed(MOCK.queueFailed);\n\t\t\t\tsetErrMsg(err.message);\n\t\t\t} finally {\n\t\t\t\tif (alive) setLoading(false);\n\t\t\t}\n\t\t}\n\t\tload();\n\t\treturn () => { alive = false; };\n\t}, [tick]);\n\n\tuseEffect(() => {\n\t\tif (!polling) return;\n\t\tconst id = setInterval(() => setTick(v => v + 1), POLL_INTERVAL_MS);\n\t\treturn () => clearInterval(id);\n\t}, [polling]);\n\n\treturn (\n\t\t<>\n\t\t\t<h2 className=\"h-section\">CRM 발송 큐</h2>\n\t\t\t<p className=\"h-sub\">큐 worker mock. 실제 카카오 발송은 MSL OS 이식 후 수행.</p>\n\t\t\t{errMsg && <div className=\"banner\">DB 조회 실패: {errMsg} — mock 데이터로 렌더링 중입니다.</div>}\n\t\t\t<div className=\"card\">\n\t\t\t\t<div className=\"row\">\n\t\t\t\t\t<div><span className=\"tag wait\">대기 {waiting.length}건</span> <span className=\"tag err\">실패 {failed.length}건</span></div>\n\t\t\t\t\t<div>\n\t\t\t\t\t\t<button className=\"btn secondary\" onClick={() => setTick(v => v + 1)}>지금 새로고침</button>\n\t\t\t\t\t\t<button className=\"btn\" onClick={() => setPolling(v => !v)}>{polling ? 'worker 중지' : `worker 시작 (${POLL_INTERVAL_MS / 1000}초 간격)`}</button>\n\t\t\t\t\t</div>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t\t<div className=\"grid-2\">\n\t\t\t\t<div className=\"card\">\n\t\t\t\t\t<h3>발송 대기</h3>\n\t\t\t\t\t{loading ? <div className=\"empty\">불러오는 중…</div> : waiting.length === 0\n\t\t\t\t\t\t? <div className=\"empty\">대기 없음</div>\n\t\t\t\t\t\t: <div className=\"list\">{waiting.map(r => (\n\t\t\t\t\t\t\t<div className=\"list-item\" key={r.id}>\n\t\t\t\t\t\t\t\t<div><div>{r.name}</div><div className=\"meta\">{r.origin}</div></div>\n\t\t\t\t\t\t\t\t<span className=\"tag wait\">{r.sendStatus}</span>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t))}</div>}\n\t\t\t\t</div>\n\t\t\t\t<div className=\"card\">\n\t\t\t\t\t<h3>실패</h3>\n\t\t\t\t\t{loading ? <div className=\"empty\">불러오는 중…</div> : failed.length === 0\n\t\t\t\t\t\t? <div className=\"empty\">실패 없음</div>\n\t\t\t\t\t\t: <div className=\"list\">{failed.map(r => (\n\t\t\t\t\t\t\t<div className=\"list-item\" key={r.id}>\n\t\t\t\t\t\t\t\t<div><div>{r.name}</div><div className=\"meta\">재시도 {r.retry || 0}회</div></div>\n\t\t\t\t\t\t\t\t<span className=\"tag err\">{r.sendStatus}</span>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t))}</div>}\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t</>\n\t);\n}\n\nfunction CheckPanel() {\n\tconst [checks, setChecks] = useState(() => Object.fromEntries(CHECKLIST.map(c => [c.id, false])));\n\tconst toggle = id => setChecks(s => ({ ...s, [id]: !s[id] }));\n\tconst doneCount = Object.values(checks).filter(Boolean).length;\n\treturn (\n\t\t<>\n\t\t\t<h2 className=\"h-section\">점검 패널</h2>\n\t\t\t<p className=\"h-sub\">MVP 동작 체크. {doneCount}/{CHECKLIST.length} 완료.</p>\n\t\t\t<div className=\"banner danger\">⚠️ Code Previewer·BROWSER_DOTENV·Kakao token 구조는 내부 MVP 전용. 외부 공개·링크 공유·GitHub Pages 배포에는 그대로 쓰지 말 것.</div>\n\t\t\t<div className=\"card\">\n\t\t\t\t<div className=\"list\">\n\t\t\t\t\t{CHECKLIST.map(c => (\n\t\t\t\t\t\t<label className=\"check\" key={c.id}>\n\t\t\t\t\t\t\t<input type=\"checkbox\" checked={checks[c.id]} onChange={() => toggle(c.id)} />\n\t\t\t\t\t\t\t<span>{c.text}</span>\n\t\t\t\t\t\t</label>\n\t\t\t\t\t))}\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t\t<div className=\"card\">\n\t\t\t\t<h3>현재 BROWSER_DOTENV</h3>\n\t\t\t\t<div className=\"code\">{BROWSER_DOTENV.trim()}</div>\n\t\t\t\t<dl className=\"kv\">\n\t\t\t\t\t<dt>FIRST_VISIT_FORM_URL</dt><dd>{ENV.FIRST_VISIT_FORM_URL || '(미설정)'}</dd>\n\t\t\t\t\t<dt>POLL_INTERVAL_SECONDS</dt><dd>{ENV.POLL_INTERVAL_SECONDS || '(기본 10)'}</dd>\n\t\t\t\t\t<dt>TIMEZONE</dt><dd>{ENV.TIMEZONE || '(Asia/Seoul)'}</dd>\n\t\t\t\t</dl>\n\t\t\t</div>\n\t\t</>\n\t);\n}\n\nconst CHECKLIST = [\n\t{ id: 'env',     text: 'BROWSER_DOTENV의 FIRST_VISIT_FORM_URL 을 실제 Form URL로 교체' },\n\t{ id: 'dbid',    text: 'DB_IDS 객체의 각 값을 워크스페이스 DB URL 의 32자 hex로 교체' },\n\t{ id: 'qr',      text: 'QR 탭에서 PNG·SVG 다운로드가 정상 동작' },\n\t{ id: 'intake',  text: '초진설문 응답 탭이 mock 또는 실 DB 데이터로 렌더링' },\n\t{ id: 'session', text: '진료 세션 탭에서 단계 상태 tag 가 보임' },\n\t{ id: 'queue',   text: 'CRM 발송 큐 worker 시작/중지 토글이 정상 동작' },\n\t{ id: 'extern',  text: '외부 브라우저(시크릿 모드)에서 Notion 로그인 없이 Form 제출이 가능한지 확인' },\n\t{ id: 'noPub',   text: 'DB 원본이 공개되지 않았는지 재확인' },\n];\n\nReactDOM.createRoot(document.getElementById('root')).render(<App />);";
+try{var __result=Babel.transform(__code,{filename:"app.tsx",presets:["react","typescript"],plugins:[__np_strip_imports,__np_dedupe_top_consts,__np_jsx_decode],generatorOpts:{jsescOption:{minimal:true}},sourceType:"module"});try{var __s=document.createElement("script");__s.type="module";__s.textContent=__result.code;document.head.appendChild(__s);}catch(runErr){console.error("[user code runtime] "+(runErr.message||runErr)+"\n"+(runErr.stack||""));}}catch(transErr){var lm=(transErr.message||"").match(/\((\d+):(\d+)\)/);var ln=lm?parseInt(lm[1],10):0;var cx="";if(ln>0){var ls=__code.split("\n");var s=Math.max(0,ln-3),e=Math.min(ls.length,ln+2);cx="\n--- 사용자 코드 주변 ---\n"+ls.slice(s,e).map(function(l,i){return (s+i+1)+": "+l;}).join("\n");}console.error("[Babel transform 실패] "+(transErr.message||transErr)+cx);}
+</script>
+</body></html>
